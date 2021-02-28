@@ -1,0 +1,1 @@
+console.log('AUTH TOKEN:', process.env.TWILIO_AUTH_TOKEN);

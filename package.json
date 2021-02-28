@@ -1,0 +1,13 @@
+{
+  "name": "covid-notif",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "node -r dotenv/config src/main.js"
+  },
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "twilio": "^3.57.0"
+  }
+}
