@@ -14,7 +14,7 @@ export interface ProvinceSummary {
     date: string;
     deaths: number;
     dvaccine: number;
-    province: string;
+    province: Province;
     recovered: number;
     testing: number;
     testing_info: string;
