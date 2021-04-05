@@ -15,9 +15,33 @@ const main = async (): Promise<void> => {
     const quebec = res.find(
         (province) => province.province === Province.QC
     ) as ProvinceSummary;
-    const { active_cases, active_cases_change, date } = quebec;
+    const { active_cases, cases, date, deaths } = quebec;
 
-    const message = `Here is your Quebec COVID-19 update for ${date}:\nChange In Active Cases: ${active_cases_change}\nTotal Active Cases: ${active_cases}`;
+    const yesterday = (
+        await axios.get('https://api.opencovid.ca/summary?date=03-04-2021')
+    ).data.summary as ProvinceSummary[];
+
+    const yesterdayQuebec = yesterday.find(
+        (province) => province.province === Province.QC
+    ) as ProvinceSummary;
+    const { cases: yesterdayCases } = yesterdayQuebec;
+
+    const caseChange = cases - yesterdayCases;
+
+    let caseChangeMessage: string;
+    if (caseChange > 0) {
+        caseChangeMessage = `New cases are up ${caseChange} from yesterday.`;
+    } else if (caseChange < 0) {
+        caseChangeMessage = `New cases are down ${
+            caseChange * -1
+        } from yesterday.`;
+    } else {
+        caseChangeMessage = `There are the same amount of new cases today as yesterday.`;
+    }
+
+    const message = `Good morning 👋, here is your Quebec COVID-19 update for ${date}:\n\nNew cases: ${
+        cases === 0 ? '0 ✨' : cases
+    }\n${caseChangeMessage}\n\nWe will get through this - stay safe and stay hopeful ❤️`;
 
     const twilioClient = require('twilio')(accountSid, authToken);
 

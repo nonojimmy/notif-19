@@ -4,7 +4,7 @@
     "main": "index.js",
     "license": "MIT",
     "scripts": {
-        "run": "npm run build && node -r dotenv/config dist/index.js",
+        "start": "npm run build && node -r dotenv/config dist/index.js",
         "build": "tsc"
     },
     "dependencies": {
