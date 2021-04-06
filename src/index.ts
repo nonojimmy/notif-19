@@ -8,6 +8,7 @@ import {
     OpenCovidResponse,
 } from './types/OpenCovidResponse';
 import { User } from './types/User';
+import { EmptyApiResponseException } from './exceptions/EmptyApiResponseException';
 
 const mongoUser = process.env.MONGO_USER;
 const mongoPass = process.env.MONGO_PASS;
@@ -86,7 +87,7 @@ const main = async (): Promise<void> => {
     ).data.summary;
 
     if (summaries.length < 1) {
-        throw new Error(`No update found for date ${todayFormatted}`);
+        throw new EmptyApiResponseException(todayFormatted);
     }
 
     const yesterdaySummaries = (
