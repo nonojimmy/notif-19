@@ -14,12 +14,18 @@ const mongoUser = process.env.MONGO_USER;
 const mongoPass = process.env.MONGO_PASS;
 const mongoDbName = process.env.MONGO_DB_NAME;
 
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
 if (!accountSid || !authToken) {
     throw new Error('Credentials not found');
 }
 
 if (!mongoUser || !mongoPass || !mongoDbName) {
     throw new Error('Mongo user credentials not found');
+}
+
+if (!twilioPhoneNumber) {
+    throw new Error('Twilio phone number not found');
 }
 
 const mongoUri = `mongodb+srv://${mongoUser}:${mongoPass}@cluster0.mmhb4.mongodb.net/${mongoDbName}?retryWrites=true&w=majority`;
@@ -98,20 +104,21 @@ const main = async (): Promise<void> => {
                 caseChange * -1
             } from yesterday.`;
         } else {
-            caseChangeMessage = `There are the same amount of new cases today as yesterday.`;
+            caseChangeMessage = `The amount of new cases has not changed from yesterday to today.`;
         }
-
-        const message = `Good morning 👋, here is your ${province} COVID-19 update for ${date}:\n\nNew cases: ${
-            cases === 0 ? '0 ✨' : cases
-        }\n${caseChangeMessage}\n\nWe will get through this - stay safe and stay hopeful ❤️`;
 
         const twilioClient = require('twilio')(accountSid, authToken);
 
         const subscribers = subscribersByProvince.get(province);
         subscribers?.forEach((sub) => {
+            const message = `Hi ${
+                sub.firstName
+            } 👋, here is your ${province} COVID-19 update for ${date}:\n\nNew cases: ${
+                cases === 0 ? '0 ✨' : cases
+            }\n${caseChangeMessage}\n\nWe will get through this - stay safe and stay hopeful ❤️`;
             twilioClient.messages.create({
                 body: message,
-                from: '+14159660125',
+                from: twilioPhoneNumber,
                 to: sub.phoneNumber,
             });
         });
