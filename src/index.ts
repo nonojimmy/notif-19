@@ -1,23 +1,24 @@
 import axios from 'axios';
+import { MongoClient } from 'mongodb';
+import dateformat from 'dateformat';
+import twilio from 'twilio';
 import {
     ProvinceSummary,
     Province,
     OpenCovidResponse,
 } from './types/OpenCovidResponse';
-import { MongoClient } from 'mongodb';
 import { User } from './types/User';
-
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
 
 const mongoUser = process.env.MONGO_USER;
 const mongoPass = process.env.MONGO_PASS;
 const mongoDbName = process.env.MONGO_DB_NAME;
 
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-if (!accountSid || !authToken) {
-    throw new Error('Credentials not found');
+if (!twilioAccountSid || !twilioAuthToken) {
+    throw new Error('Twilio credentials not found');
 }
 
 if (!mongoUser || !mongoPass || !mongoDbName) {
@@ -27,6 +28,8 @@ if (!mongoUser || !mongoPass || !mongoDbName) {
 if (!twilioPhoneNumber) {
     throw new Error('Twilio phone number not found');
 }
+
+const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
 
 const mongoUri = `mongodb+srv://${mongoUser}:${mongoPass}@cluster0.mmhb4.mongodb.net/${mongoDbName}?retryWrites=true&w=majority`;
 const mongoClient = new MongoClient(mongoUri, {
@@ -70,28 +73,31 @@ const main = async (): Promise<void> => {
         });
     });
 
-    const dateformat = require('dateformat');
     const dateNow = new Date();
     const dateYesterday = new Date(dateNow);
     dateYesterday.setDate(dateNow.getDate() - 1);
     const todayFormatted = dateformat(dateNow, 'dd-mm-yyyy');
     const yesterdayFormatted = dateformat(dateYesterday, 'dd-mm-yyyy');
 
-    const res = (
+    const summaries = (
         await axios.get<OpenCovidResponse>(
             `https://api.opencovid.ca/summary?date=${todayFormatted}`
         )
     ).data.summary;
 
-    const yesterday = (
+    if (summaries.length < 1) {
+        throw new Error(`No update found for date ${todayFormatted}`);
+    }
+
+    const yesterdaySummaries = (
         await axios.get<OpenCovidResponse>(
             `https://api.opencovid.ca/summary?date=${yesterdayFormatted}`
         )
     ).data.summary;
 
-    res.forEach((summary) => {
+    summaries.forEach((summary) => {
         const { province, cases, date } = summary;
-        const { cases: yesterdayCases } = yesterday.find(
+        const { cases: yesterdayCases } = yesterdaySummaries.find(
             (summary) => summary.province === province
         ) as ProvinceSummary;
 
@@ -106,8 +112,6 @@ const main = async (): Promise<void> => {
         } else {
             caseChangeMessage = `The amount of new cases has not changed from yesterday to today.`;
         }
-
-        const twilioClient = require('twilio')(accountSid, authToken);
 
         const subscribers = subscribersByProvince.get(province);
         subscribers?.forEach((sub) => {
