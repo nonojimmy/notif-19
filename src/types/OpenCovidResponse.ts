@@ -1,3 +1,7 @@
+export interface OpenCovidResponse {
+    summary: ProvinceSummary[];
+}
+
 export interface ProvinceSummary {
     active_cases: number;
     active_cases_change: number;

@@ -7,5 +7,6 @@ Text messaging is powered by [Twilio](https://www.twilio.com)
 
 ##TODOs and Next Steps
 
+-   handle case when API has no daily update
 -   set up webhook to allow users to subscribe via text message
 -   set up webhook to allow users to unsubscribe via text message

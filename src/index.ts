@@ -1,5 +1,9 @@
 import axios from 'axios';
-import { ProvinceSummary, Province } from './types/OpenCovidResponse';
+import {
+    ProvinceSummary,
+    Province,
+    OpenCovidResponse,
+} from './types/OpenCovidResponse';
 import { MongoClient } from 'mongodb';
 import { User } from './types/User';
 
@@ -60,12 +64,24 @@ const main = async (): Promise<void> => {
         });
     });
 
-    const res = (await axios.get('https://api.opencovid.ca/summary')).data
-        .summary as ProvinceSummary[];
+    const dateformat = require('dateformat');
+    const dateNow = new Date();
+    const dateYesterday = new Date(dateNow);
+    dateYesterday.setDate(dateNow.getDate() - 1);
+    const todayFormatted = dateformat(dateNow, 'dd-mm-yyyy');
+    const yesterdayFormatted = dateformat(dateYesterday, 'dd-mm-yyyy');
+
+    const res = (
+        await axios.get<OpenCovidResponse>(
+            `https://api.opencovid.ca/summary?date=${todayFormatted}`
+        )
+    ).data.summary;
 
     const yesterday = (
-        await axios.get('https://api.opencovid.ca/summary?date=03-04-2021')
-    ).data.summary as ProvinceSummary[]; //@TODO calculate yesterday's date
+        await axios.get<OpenCovidResponse>(
+            `https://api.opencovid.ca/summary?date=${yesterdayFormatted}`
+        )
+    ).data.summary;
 
     res.forEach((summary) => {
         const { province, cases, date } = summary;
@@ -85,7 +101,7 @@ const main = async (): Promise<void> => {
             caseChangeMessage = `There are the same amount of new cases today as yesterday.`;
         }
 
-        const message = `Good morning 👋, here is your Quebec COVID-19 update for ${date}:\n\nNew cases: ${
+        const message = `Good morning 👋, here is your ${province} COVID-19 update for ${date}:\n\nNew cases: ${
             cases === 0 ? '0 ✨' : cases
         }\n${caseChangeMessage}\n\nWe will get through this - stay safe and stay hopeful ❤️`;
 
@@ -100,6 +116,8 @@ const main = async (): Promise<void> => {
             });
         });
     });
+
+    console.log('Finished running job');
 };
 
 main();
