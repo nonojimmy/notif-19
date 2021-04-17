@@ -9,6 +9,7 @@ import {
 } from './types/OpenCovidResponse';
 import { User } from './types/User';
 import { EmptyApiResponseException } from './exceptions/EmptyApiResponseException';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const mongoUser = process.env.MONGO_USER;
 const mongoPass = process.env.MONGO_PASS;
@@ -38,7 +39,9 @@ const mongoClient = new MongoClient(mongoUri, {
     useUnifiedTopology: true,
 });
 
-const main = async (): Promise<void> => {
+export const handler = async (
+    event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
     let users: User[];
     try {
         await mongoClient.connect();
@@ -129,7 +132,8 @@ const main = async (): Promise<void> => {
         });
     });
 
-    console.log('Finished running job');
+    return {
+        statusCode: 200,
+        body: 'Finished running job',
+    };
 };
-
-main();

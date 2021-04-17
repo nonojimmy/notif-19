@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Globals:
+    Function:
+        Layers:
+            - !Ref RuntimeDependenciesLayer
+Resources:
+    Notif19:
+        Type: 'AWS::Serverless::Function'
+        Metadata:
+            BuildMethod: makefile
+        Properties:
+            Handler: dist/index.handler
+            Runtime: nodejs12.x
+            Timeout: 900
+            Description: Retrieves daily COVID-19 case data by Canadian province and sends it via text message to subscribers.
+            Events:
+                StartScheduledEvent:
+                    Type: Schedule
+                    Properties:
+                        Schedule: cron(0 16 ? * 1-5 *)
+
+    RuntimeDependenciesLayer:
+        Type: AWS::Serverless::LayerVersion
+        Metadata:
+            BuildMethod: makefile
+        Properties:
+            Description: Runtime dependencies
+            ContentUri: ./
+            CompatibleRuntimes:
+                - nodejs12.x
+            RetentionPolicy: Retain
