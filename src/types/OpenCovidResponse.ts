@@ -25,7 +25,7 @@ export interface ProvinceSummary {
 }
 
 export enum Province {
-    NAB = 'Alberta',
+    AB = 'Alberta',
     BC = 'BC',
     MB = 'Manitoba',
     NB = 'New Brunswick',
