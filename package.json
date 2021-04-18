@@ -8,6 +8,7 @@
         "compile": "rm -rf dist && tsc"
     },
     "dependencies": {
+        "aws-lambda": "^1.0.6",
         "axios": "^0.21.1",
         "dateformat": "^4.5.1",
         "dotenv": "^8.2.0",

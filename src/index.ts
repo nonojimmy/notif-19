@@ -32,19 +32,23 @@ if (!twilioPhoneNumber) {
 }
 
 const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
-
 const mongoUri = `mongodb+srv://${mongoUser}:${mongoPass}@cluster0.mmhb4.mongodb.net/${mongoDbName}?retryWrites=true&w=majority`;
-const mongoClient = new MongoClient(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-});
+
+const connectToMongo = async (): Promise<MongoClient> => {
+    const mongoClient = new MongoClient(mongoUri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    });
+    await mongoClient.connect();
+    return mongoClient;
+};
 
 export const handler = async (
     event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
     let users: User[];
+    const mongoClient = await connectToMongo();
     try {
-        await mongoClient.connect();
         users = await mongoClient
             .db(mongoDbName)
             .collection('notif19_users')
