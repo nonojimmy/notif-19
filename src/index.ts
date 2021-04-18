@@ -43,9 +43,62 @@ const connectToMongo = async (): Promise<MongoClient> => {
     return mongoClient;
 };
 
-export const handler = async (
-    event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+const buildUpdateMessage = (
+    summary: ProvinceSummary,
+    yesterdaySummary: ProvinceSummary
+): string => {
+    const { cases } = summary;
+    const caseChange = cases - yesterdaySummary.cases;
+    let caseChangeMessage: string;
+    if (caseChange > 0) {
+        caseChangeMessage = `New cases are up ${caseChange} from yesterday.`;
+    } else if (caseChange < 0) {
+        caseChangeMessage = `New cases are down ${
+            caseChange * -1
+        } from yesterday.`;
+    } else {
+        caseChangeMessage = `The amount of new cases has not changed from yesterday to today.`;
+    }
+
+    return `${formatProvinceName(summary.province)}\nNew cases: ${
+        cases === 0 ? '0 ✨' : cases
+    }\n${caseChangeMessage}`;
+};
+
+const formatProvinceName = (prov: Province): string => {
+    switch (prov) {
+        case Province.AB:
+            return 'Alberta';
+        case Province.BC:
+            return 'British Columbia';
+        case Province.MB:
+            return 'Manitoba';
+        case Province.NB:
+            return 'New Brunswick';
+        case Province.NL:
+            return 'Newfoundland';
+        case Province.NS:
+            return 'Nova Scotia';
+        case Province.NU:
+            return 'Nunavut';
+        case Province.NWT:
+            return 'Northwest Territories';
+        case Province.ON:
+            return 'Ontario';
+        case Province.PEI:
+            return 'Prince Edward Island';
+        case Province.QC:
+            return 'Quebec';
+        case Province.SK:
+            return 'Saskatchewan';
+        case Province.YK:
+            return 'Yukon';
+        default:
+            throw new Error(`Invalid province name: ${prov}`);
+    }
+};
+
+export const handler = async (): Promise<APIGatewayProxyResult> => {
     let users: User[];
     const mongoClient = await connectToMongo();
     try {
@@ -60,28 +113,8 @@ export const handler = async (
         await mongoClient.close();
     }
 
-    const subscribersByProvince = new Map<Province, User[]>();
-    subscribersByProvince.set(Province.AB, []);
-    subscribersByProvince.set(Province.BC, []);
-    subscribersByProvince.set(Province.MB, []);
-    subscribersByProvince.set(Province.NB, []);
-    subscribersByProvince.set(Province.NL, []);
-    subscribersByProvince.set(Province.NS, []);
-    subscribersByProvince.set(Province.NU, []);
-    subscribersByProvince.set(Province.NWT, []);
-    subscribersByProvince.set(Province.ON, []);
-    subscribersByProvince.set(Province.PEI, []);
-    subscribersByProvince.set(Province.QC, []);
-    subscribersByProvince.set(Province.SK, []);
-    subscribersByProvince.set(Province.YK, []);
-
-    users.forEach((user) => {
-        user.subscribedProvinces.forEach((prov: Province) => {
-            subscribersByProvince.get(prov)?.push(user);
-        });
-    });
-
     const dateNow = new Date();
+    dateNow.setDate(dateNow.getDate() - 1);
     const dateYesterday = new Date(dateNow);
     dateYesterday.setDate(dateNow.getDate() - 1);
     const todayFormatted = dateformat(dateNow, 'dd-mm-yyyy');
@@ -103,37 +136,56 @@ export const handler = async (
         )
     ).data.summary;
 
-    summaries.forEach((summary) => {
-        const { province, cases, date } = summary;
-        const { cases: yesterdayCases } = yesterdaySummaries.find(
-            (summary) => summary.province === province
-        ) as ProvinceSummary;
+    const updateMsgByProvince = new Map<Province, string>();
+    updateMsgByProvince.set(Province.AB, '');
+    updateMsgByProvince.set(Province.BC, '');
+    updateMsgByProvince.set(Province.MB, '');
+    updateMsgByProvince.set(Province.NB, '');
+    updateMsgByProvince.set(Province.NL, '');
+    updateMsgByProvince.set(Province.NS, '');
+    updateMsgByProvince.set(Province.NU, '');
+    updateMsgByProvince.set(Province.NWT, '');
+    updateMsgByProvince.set(Province.ON, '');
+    updateMsgByProvince.set(Province.PEI, '');
+    updateMsgByProvince.set(Province.QC, '');
+    updateMsgByProvince.set(Province.SK, '');
+    updateMsgByProvince.set(Province.YK, '');
 
-        const caseChange = cases - yesterdayCases;
-        let caseChangeMessage: string;
-        if (caseChange > 0) {
-            caseChangeMessage = `New cases are up ${caseChange} from yesterday.`;
-        } else if (caseChange < 0) {
-            caseChangeMessage = `New cases are down ${
-                caseChange * -1
-            } from yesterday.`;
-        } else {
-            caseChangeMessage = `The amount of new cases has not changed from yesterday to today.`;
+    summaries.forEach((summary) => {
+        const { province } = summary;
+
+        if (!Object.values(Province).includes(province)) {
+            return;
         }
 
-        const subscribers = subscribersByProvince.get(province);
-        subscribers?.forEach((sub) => {
-            const message = `Hi ${
-                sub.firstName
-            } 👋, here is your ${province} COVID-19 update for ${date}:\n\nNew cases: ${
-                cases === 0 ? '0 ✨' : cases
-            }\n${caseChangeMessage}\n\nWe will get through this - stay safe and stay hopeful ❤️`;
-            twilioClient.messages.create({
+        const yesterdaySummary = yesterdaySummaries.find(
+            (yesterday) => yesterday.province === province
+        ) as ProvinceSummary;
+
+        updateMsgByProvince.set(
+            province,
+            buildUpdateMessage(summary, yesterdaySummary)
+        );
+    });
+
+    users.forEach((user) => {
+        let message = `Hi ${user.firstName} 👋, here is your COVID-19 update for ${todayFormatted}:\n\n`;
+
+        user.subscribedProvinces.forEach((province, i) => {
+            message += updateMsgByProvince.get(province);
+            message += '\n\n';
+            if (i === user.subscribedProvinces.length - 1) {
+                message += 'We will get through this! Stay safe ❤️';
+            }
+        });
+
+        twilioClient.messages
+            .create({
                 body: message,
                 from: twilioPhoneNumber,
-                to: sub.phoneNumber,
-            });
-        });
+                to: user.phoneNumber,
+            })
+            .catch((err) => console.log(err.message));
     });
 
     return {
