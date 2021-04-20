@@ -18,7 +18,7 @@ Resources:
                 StartScheduledEvent:
                     Type: Schedule
                     Properties:
-                        Schedule: cron(0 16 ? * 1-5 *)
+                        Schedule: cron(0 9 ? * * *)
 
     RuntimeDependenciesLayer:
         Type: AWS::Serverless::LayerVersion

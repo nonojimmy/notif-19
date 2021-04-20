@@ -34,33 +34,43 @@ if (!twilioPhoneNumber) {
 const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
 const mongoUri = `mongodb+srv://${mongoUser}:${mongoPass}@cluster0.mmhb4.mongodb.net/${mongoDbName}?retryWrites=true&w=majority`;
 
+let cachedMongoClient: MongoClient;
+
 const connectToMongo = async (): Promise<MongoClient> => {
+    if (cachedMongoClient && cachedMongoClient.isConnected()) {
+        return cachedMongoClient;
+    }
+
     const mongoClient = new MongoClient(mongoUri, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
     });
+
     await mongoClient.connect();
-    return mongoClient;
+
+    cachedMongoClient = mongoClient;
+
+    return cachedMongoClient;
 };
 
 const buildUpdateMessage = (
-    summary: ProvinceSummary,
-    yesterdaySummary: ProvinceSummary
+    yesterdaySummary: ProvinceSummary,
+    previousDaySummary: ProvinceSummary
 ): string => {
-    const { cases } = summary;
-    const caseChange = cases - yesterdaySummary.cases;
+    const { cases } = yesterdaySummary;
+    const caseChange = cases - previousDaySummary.cases;
     let caseChangeMessage: string;
     if (caseChange > 0) {
-        caseChangeMessage = `New cases are up ${caseChange} from yesterday.`;
+        caseChangeMessage = `New cases were up ${caseChange} 📈 from the day before - be careful.`;
     } else if (caseChange < 0) {
-        caseChangeMessage = `New cases are down ${
+        caseChangeMessage = `New cases were down ${
             caseChange * -1
-        } from yesterday.`;
+        } 📉 from the day before.`;
     } else {
-        caseChangeMessage = `The amount of new cases has not changed from yesterday to today.`;
+        caseChangeMessage = `The amount of new cases stayed at ${cases} - the same from the day before.`;
     }
 
-    return `${formatProvinceName(summary.province)}\nNew cases: ${
+    return `${formatProvinceName(yesterdaySummary.province)}\nNew cases: ${
         cases === 0 ? '0 ✨' : cases
     }\n${caseChangeMessage}`;
 };
@@ -113,26 +123,26 @@ export const handler = async (): Promise<APIGatewayProxyResult> => {
         await mongoClient.close();
     }
 
-    const dateNow = new Date();
-    dateNow.setDate(dateNow.getDate() - 1);
-    const dateYesterday = new Date(dateNow);
-    dateYesterday.setDate(dateNow.getDate() - 1);
-    const todayFormatted = dateformat(dateNow, 'dd-mm-yyyy');
+    const dateYesterday = new Date();
+    dateYesterday.setDate(dateYesterday.getDate() - 1);
+    const datePreviousDay = new Date(dateYesterday);
+    datePreviousDay.setDate(dateYesterday.getDate() - 1);
     const yesterdayFormatted = dateformat(dateYesterday, 'dd-mm-yyyy');
-
-    const summaries = (
-        await axios.get<OpenCovidResponse>(
-            `https://api.opencovid.ca/summary?date=${todayFormatted}`
-        )
-    ).data.summary;
-
-    if (summaries.length < 1) {
-        throw new EmptyApiResponseException(todayFormatted);
-    }
+    const prevDayFormatted = dateformat(datePreviousDay, 'dd-mm-yyyy');
 
     const yesterdaySummaries = (
         await axios.get<OpenCovidResponse>(
             `https://api.opencovid.ca/summary?date=${yesterdayFormatted}`
+        )
+    ).data.summary;
+
+    if (yesterdaySummaries.length < 1) {
+        throw new EmptyApiResponseException(yesterdayFormatted);
+    }
+
+    const prevDaySummaries = (
+        await axios.get<OpenCovidResponse>(
+            `https://api.opencovid.ca/summary?date=${prevDayFormatted}`
         )
     ).data.summary;
 
@@ -151,25 +161,25 @@ export const handler = async (): Promise<APIGatewayProxyResult> => {
     updateMsgByProvince.set(Province.SK, '');
     updateMsgByProvince.set(Province.YK, '');
 
-    summaries.forEach((summary) => {
+    yesterdaySummaries.forEach((summary) => {
         const { province } = summary;
 
         if (!Object.values(Province).includes(province)) {
             return;
         }
 
-        const yesterdaySummary = yesterdaySummaries.find(
-            (yesterday) => yesterday.province === province
+        const prevDaySummary = prevDaySummaries.find(
+            (prev) => prev.province === province
         ) as ProvinceSummary;
 
         updateMsgByProvince.set(
             province,
-            buildUpdateMessage(summary, yesterdaySummary)
+            buildUpdateMessage(summary, prevDaySummary)
         );
     });
 
     users.forEach((user) => {
-        let message = `Hi ${user.firstName} 👋, here is your COVID-19 update for ${todayFormatted}:\n\n`;
+        let message = `👋 Good morning! Here is your COVID-19 update for yesterday: ${yesterdayFormatted}:\n\n`;
 
         user.subscribedProvinces.forEach((province, i) => {
             message += updateMsgByProvince.get(province);
