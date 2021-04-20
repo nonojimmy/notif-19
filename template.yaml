@@ -18,7 +18,8 @@ Resources:
                 StartScheduledEvent:
                     Type: Schedule
                     Properties:
-                        Schedule: cron(0 9 ? * * *)
+                        # all times are in UTC - 13h UTC = 9h EST
+                        Schedule: cron(0 13 ? * * *)
 
     RuntimeDependenciesLayer:
         Type: AWS::Serverless::LayerVersion

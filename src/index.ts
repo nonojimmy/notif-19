@@ -108,7 +108,7 @@ const formatProvinceName = (prov: Province): string => {
     }
 };
 
-export const handler = async (): Promise<APIGatewayProxyResult> => {
+export const handler = async (): Promise<any> => {
     let users: User[];
     const mongoClient = await connectToMongo();
     try {
@@ -123,7 +123,9 @@ export const handler = async (): Promise<APIGatewayProxyResult> => {
         await mongoClient.close();
     }
 
-    const dateYesterday = new Date();
+    // CONVERT TO EST
+    const dateNowEST = new Date().getTime() + 3600000 * -5;
+    const dateYesterday = new Date(dateNowEST);
     dateYesterday.setDate(dateYesterday.getDate() - 1);
     const datePreviousDay = new Date(dateYesterday);
     datePreviousDay.setDate(dateYesterday.getDate() - 1);
