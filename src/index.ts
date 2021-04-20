@@ -180,25 +180,27 @@ export const handler = async (): Promise<any> => {
         );
     });
 
-    users.forEach((user) => {
-        let message = `👋 Good morning! Here is your COVID-19 update for yesterday: ${yesterdayFormatted}:\n\n`;
+    await Promise.all(
+        users.map(async (user) => {
+            let message = `👋 Good morning! Here is your COVID-19 update for yesterday: ${yesterdayFormatted}:\n\n`;
 
-        user.subscribedProvinces.forEach((province, i) => {
-            message += updateMsgByProvince.get(province);
-            message += '\n\n';
-            if (i === user.subscribedProvinces.length - 1) {
-                message += 'We will get through this! Stay safe ❤️';
-            }
-        });
+            user.subscribedProvinces.forEach((province, i) => {
+                message += updateMsgByProvince.get(province);
+                message += '\n\n';
+                if (i === user.subscribedProvinces.length - 1) {
+                    message += 'We will get through this! Stay safe ❤️';
+                }
+            });
 
-        twilioClient.messages
-            .create({
-                body: message,
-                from: twilioPhoneNumber,
-                to: user.phoneNumber,
-            })
-            .catch((err) => console.log(err.message));
-    });
+            await twilioClient.messages
+                .create({
+                    body: message,
+                    from: twilioPhoneNumber,
+                    to: user.phoneNumber,
+                })
+                .catch((err) => console.log(err.message));
+        })
+    );
 
     return {
         statusCode: 200,
