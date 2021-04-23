@@ -15,8 +15,9 @@ Quebec
 New cases: 1248
 New cases were up 31 📈 from the day before - be careful.
 
-We will get through this! Stay safe ❤
+We will get through this! Stay safe ❤️
 ```
+
 
 ## TODOs and Next Steps
 
