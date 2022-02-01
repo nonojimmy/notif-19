@@ -10,10 +10,17 @@ import {
 import { User } from './types/User';
 import { EmptyApiResponseException } from './exceptions/EmptyApiResponseException';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import {
+    apiBaseUrl,
+    buildUpdateMessage,
+    createUpdateMessageMap,
+    getPreviousDate,
+} from './utils';
 
 const mongoUser = process.env.MONGO_USER;
 const mongoPass = process.env.MONGO_PASS;
 const mongoDbName = process.env.MONGO_DB_NAME;
+const mongoCollectionName = process.env.MONGO_COLLECTION_NAME;
 
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
@@ -23,7 +30,7 @@ if (!twilioAccountSid || !twilioAuthToken) {
     throw new Error('Twilio credentials not found');
 }
 
-if (!mongoUser || !mongoPass || !mongoDbName) {
+if (!mongoUser || !mongoPass || !mongoDbName || !mongoCollectionName) {
     throw new Error('Mongo user credentials not found');
 }
 
@@ -53,68 +60,15 @@ const connectToMongo = async (): Promise<MongoClient> => {
     return cachedMongoClient;
 };
 
-const buildUpdateMessage = (
-    yesterdaySummary: ProvinceSummary,
-    previousDaySummary: ProvinceSummary
-): string => {
-    const { cases } = yesterdaySummary;
-    const caseChange = cases - previousDaySummary.cases;
-    let caseChangeMessage: string;
-    if (caseChange > 0) {
-        caseChangeMessage = `New cases were up ${caseChange} 📈 from the day before - be careful.`;
-    } else if (caseChange < 0) {
-        caseChangeMessage = `New cases were down ${
-            caseChange * -1
-        } 📉 from the day before.`;
-    } else {
-        caseChangeMessage = `The amount of new cases stayed at ${cases} - the same from the day before.`;
-    }
-
-    return `${formatProvinceName(yesterdaySummary.province)}\nNew cases: ${
-        cases === 0 ? '0 ✨' : cases
-    }\n${caseChangeMessage}`;
-};
-
-const formatProvinceName = (prov: Province): string => {
-    switch (prov) {
-        case Province.AB:
-            return 'Alberta';
-        case Province.BC:
-            return 'British Columbia';
-        case Province.MB:
-            return 'Manitoba';
-        case Province.NB:
-            return 'New Brunswick';
-        case Province.NL:
-            return 'Newfoundland';
-        case Province.NS:
-            return 'Nova Scotia';
-        case Province.NU:
-            return 'Nunavut';
-        case Province.NWT:
-            return 'Northwest Territories';
-        case Province.ON:
-            return 'Ontario';
-        case Province.PEI:
-            return 'Prince Edward Island';
-        case Province.QC:
-            return 'Quebec';
-        case Province.SK:
-            return 'Saskatchewan';
-        case Province.YK:
-            return 'Yukon';
-        default:
-            throw new Error(`Invalid province name: ${prov}`);
-    }
-};
-
-export const handler = async (): Promise<any> => {
+export const handler = async (
+    event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
     let users: User[];
     const mongoClient = await connectToMongo();
     try {
         users = await mongoClient
             .db(mongoDbName)
-            .collection('notif19_users')
+            .collection(mongoCollectionName)
             .find()
             .toArray();
     } catch (e) {
@@ -125,16 +79,14 @@ export const handler = async (): Promise<any> => {
 
     // CONVERT TO EST
     const dateNowEST = new Date().getTime() + 3600000 * -5;
-    const dateYesterday = new Date(dateNowEST);
-    dateYesterday.setDate(dateYesterday.getDate() - 1);
-    const datePreviousDay = new Date(dateYesterday);
-    datePreviousDay.setDate(dateYesterday.getDate() - 1);
+    const dateYesterday = getPreviousDate(dateNowEST);
+    const datePreviousDay = getPreviousDate(dateYesterday.getDate());
     const yesterdayFormatted = dateformat(dateYesterday, 'dd-mm-yyyy');
     const prevDayFormatted = dateformat(datePreviousDay, 'dd-mm-yyyy');
 
     const yesterdaySummaries = (
         await axios.get<OpenCovidResponse>(
-            `https://api.opencovid.ca/summary?date=${yesterdayFormatted}`
+            `${apiBaseUrl}/summary?date=${yesterdayFormatted}`
         )
     ).data.summary;
 
@@ -144,24 +96,11 @@ export const handler = async (): Promise<any> => {
 
     const prevDaySummaries = (
         await axios.get<OpenCovidResponse>(
-            `https://api.opencovid.ca/summary?date=${prevDayFormatted}`
+            `${apiBaseUrl}/summary?date=${prevDayFormatted}`
         )
     ).data.summary;
 
-    const updateMsgByProvince = new Map<Province, string>();
-    updateMsgByProvince.set(Province.AB, '');
-    updateMsgByProvince.set(Province.BC, '');
-    updateMsgByProvince.set(Province.MB, '');
-    updateMsgByProvince.set(Province.NB, '');
-    updateMsgByProvince.set(Province.NL, '');
-    updateMsgByProvince.set(Province.NS, '');
-    updateMsgByProvince.set(Province.NU, '');
-    updateMsgByProvince.set(Province.NWT, '');
-    updateMsgByProvince.set(Province.ON, '');
-    updateMsgByProvince.set(Province.PEI, '');
-    updateMsgByProvince.set(Province.QC, '');
-    updateMsgByProvince.set(Province.SK, '');
-    updateMsgByProvince.set(Province.YK, '');
+    const updateMsgByProvince = createUpdateMessageMap();
 
     yesterdaySummaries.forEach((summary) => {
         const { province } = summary;
@@ -182,13 +121,13 @@ export const handler = async (): Promise<any> => {
 
     await Promise.all(
         users.map(async (user) => {
-            let message = `👋 Good morning! Here is your COVID-19 update for yesterday: ${yesterdayFormatted}:\n\n`;
+            let message = `Good morning! Here is your COVID-19 update for yesterday: ${yesterdayFormatted}:\n\n`;
 
             user.subscribedProvinces.forEach((province, i) => {
                 message += updateMsgByProvince.get(province);
                 message += '\n\n';
                 if (i === user.subscribedProvinces.length - 1) {
-                    message += 'We will get through this! Stay safe ❤️';
+                    message += 'We will get through this! Stay safe :)';
                 }
             });
 

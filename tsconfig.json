@@ -4,6 +4,7 @@
         "outDir": "dist",
         "strict": true,
         "esModuleInterop": true,
+        "useUnknownInCatchVariables": false,
         "lib": ["es5", "es2015.promise"]
     }
 }

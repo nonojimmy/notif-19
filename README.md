@@ -9,15 +9,14 @@ This project is a script to send daily Canadian provincial COVID-19 updates to s
 Once subscribed, the user will receive a text message ~1pm UTC in the following format:
 
 ```
-👋 Good morning! Here is your COVID-19 update for yesterday: 22-04-2021:
+Good morning! Here is your COVID-19 update for yesterday: 22-04-2021:
 
 Quebec
 New cases: 1248
-New cases were up 31 📈 from the day before - be careful.
+New cases were up 31 from the day before - be careful.
 
-We will get through this! Stay safe ❤️
+We will get through this! Stay safe :)
 ```
-
 
 ## TODOs and Next Steps
 
